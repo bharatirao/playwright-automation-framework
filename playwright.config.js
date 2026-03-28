@@ -15,7 +15,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   /* Default timeout */
   timeout: 120_000,
-  testDir: './tests',
+  testDir: './tests/e2e',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -25,10 +25,7 @@ export default defineConfig({
   /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
- reporter: [
-   ['html', { open: 'never', outputFolder: 'playwright-report' }],
-  ['spec']
-],
+ reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
@@ -37,7 +34,7 @@ export default defineConfig({
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     // trace: 'on-first-retry',
       // ✅ Record video for failed tests
-  video: 'retain-on-failure',
+   video: 'on',
 
   // ✅ Screenshot on failure
   screenshot: 'only-on-failure',
@@ -94,6 +91,3 @@ export default defineConfig({
   //   reuseExistingServer: !process.env.CI,
   // },
 });
-module.exports = {
-  testDir: './tests/e2e',
-};
