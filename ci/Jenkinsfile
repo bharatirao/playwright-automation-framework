@@ -1,0 +1,51 @@
+pipeline {
+    agent any
+
+    tools {
+        nodejs "NodeJS"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git 'https://github.com/bharatirao/playwright-automation-framework.git'
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                bat 'npm install'
+                bat 'npx playwright install'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                bat 'npx playwright test'
+            }
+        }
+
+        stage('Publish Report') {
+            steps {
+                publishHTML([
+                    reportDir: 'playwright-report',
+                    reportFiles: 'index.html',
+                    reportName: 'Playwright Report'
+                ])
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'playwright-report/**', allowEmptyArchive: true
+        }
+        success {
+            echo 'Tests Passed ✅'
+        }
+        failure {
+            echo 'Tests Failed ❌'
+        }
+    }
+}
