@@ -85,7 +85,8 @@ pipeline {
                 def summary = getPlaywrightSummary()
                 slackSend(
                     channel: '#playwright-automation-results',
-                    message: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n${summary}\nHTML Report: ${env.REPORT_URL}"
+                    message: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n${summary}\nHTML Report: ${env.REPORT_URL}",
+                    webhookUrl: credentials('slack-webhook')
                 )
             }
         }
@@ -95,14 +96,15 @@ pipeline {
                 def summary = getPlaywrightSummary()
                 slackSend(
                     channel: '#playwright-automation-results',
-                    message: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n${summary}\nHTML Report: ${env.REPORT_URL}"
+                    message: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n${summary}\nHTML Report: ${env.REPORT_URL}",
+                    webhookUrl: credentials('slack-webhook')
                 )
             }
         }
     }
 }
 
-// Utility to summarize test results
+// Utility to summarize test results per browser
 def getPlaywrightSummary() {
     def summary = ""
     def browsers = ["chromium", "firefox", "webkit", "chrome"]
