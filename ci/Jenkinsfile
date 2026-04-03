@@ -52,14 +52,14 @@ pipeline {
                     if (params.BROWSER == 'ALL') {
                         echo "Running tests on ALL browsers in parallel"
                         parallel(
-                            Chromium: { bat 'npx playwright test --project=chromium --output=results/chromium || exit 0' },
-                            Firefox: { bat 'npx playwright test --project=firefox --output=results/firefox || exit 0' },
-                            Webkit: { bat 'npx playwright test --project=webkit --output=results/webkit || exit 0' },
-                            Chrome: { bat 'npx playwright test --project="Google Chrome" --output=results/chrome || exit 0' }
+                            Chromium: { bat 'npx playwright test --project=chromium --output=results/chromium' },
+                            Firefox: { bat 'npx playwright test --project=firefox --output=results/firefox' },
+                            Webkit: { bat 'npx playwright test --project=webkit --output=results/webkit' },
+                            Chrome: { bat 'npx playwright test --project="Google Chrome" --output=results/chrome' }
                         )
                     } else {
                         echo "Running tests on browser: ${params.BROWSER}"
-                        bat "npx playwright test --project=${params.BROWSER} --output=results/${params.BROWSER} || exit 0"
+                        bat "npx playwright test --project=${params.BROWSER} --output=results/${params.BROWSER}"
                     }
                 }
             }
@@ -98,7 +98,8 @@ ${summary}
 
 Report: ${env.REPORT_URL}
 """,
-                    tokenCredentialId: 'slack-bot-token'
+                    tokenCredentialId: 'slack-bot-token',
+                    botUser: true
                 )
             }
         }
@@ -117,7 +118,8 @@ ${summary}
 
 Report: ${env.REPORT_URL}
 """,
-                    tokenCredentialId: 'slack-bot-token'
+                    tokenCredentialId: 'slack-bot-token',
+                    botUser: true
                 )
             }
         }
