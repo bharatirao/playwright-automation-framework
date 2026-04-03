@@ -5,6 +5,19 @@ pipeline {
         nodejs "NodeJS"
     }
 
+    parameters {
+        choice(
+            name: 'BRANCH',
+            choices: ['main', 'master'],
+            description: 'Select the branch to build'
+        )
+        choice(
+            name: 'BROWSER',
+            choices: ['chromium', 'firefox', 'webkit', 'chrome', 'ALL'],
+            description: 'Select browser to run tests or ALL'
+        )
+    }
+
     environment {
         REPORT_URL = "${env.BUILD_URL}playwright-report/index.html"
     }
@@ -19,7 +32,8 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git 'https://github.com/bharatirao/playwright-automation-framework.git'
+                echo "Checking out branch: ${params.BRANCH}"
+                git branch: "${params.BRANCH}", url: 'https://github.com/bharatirao/playwright-automation-framework.git'
             }
         }
 
@@ -32,30 +46,20 @@ pipeline {
             }
         }
 
-        stage('Run Tests in Parallel') {
-            parallel {
-
-                stage('Chromium') {
-                    steps {
-                        bat 'npx playwright test --project=chromium --output=results/chromium || exit 0'
-                    }
-                }
-
-                stage('Firefox') {
-                    steps {
-                        bat 'npx playwright test --project=firefox --output=results/firefox || exit 0'
-                    }
-                }
-
-                stage('Webkit') {
-                    steps {
-                        bat 'npx playwright test --project=webkit --output=results/webkit || exit 0'
-                    }
-                }
-
-                stage('Chrome (Channel)') {
-                    steps {
-                        bat 'npx playwright test --project="Google Chrome" --output=results/chrome || exit 0'
+        stage('Run Tests') {
+            steps {
+                script {
+                    if (params.BROWSER == 'ALL') {
+                        echo "Running tests on ALL browsers in parallel"
+                        parallel(
+                            Chromium: { bat 'npx playwright test --project=chromium --output=results/chromium || exit 0' },
+                            Firefox: { bat 'npx playwright test --project=firefox --output=results/firefox || exit 0' },
+                            Webkit: { bat 'npx playwright test --project=webkit --output=results/webkit || exit 0' },
+                            Chrome: { bat 'npx playwright test --project="Google Chrome" --output=results/chrome || exit 0' }
+                        )
+                    } else {
+                        echo "Running tests on browser: ${params.BROWSER}"
+                        bat "npx playwright test --project=${params.BROWSER} --output=results/${params.BROWSER} || exit 0"
                     }
                 }
             }
@@ -84,8 +88,7 @@ pipeline {
             script {
                 def summary = getPlaywrightSummary()
                 slackSend(
-                    channel: '#playwright-automation-results',
-                    message: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n${summary}\nHTML Report: ${env.REPORT_URL}",
+                    message: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}\nBranch: ${params.BRANCH}\nBrowser: ${params.BROWSER}\n${summary}\nHTML Report: ${env.REPORT_URL}",
                     webhookUrl: credentials('slack-webhook')
                 )
             }
@@ -95,8 +98,7 @@ pipeline {
             script {
                 def summary = getPlaywrightSummary()
                 slackSend(
-                    channel: '#playwright-automation-results',
-                    message: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n${summary}\nHTML Report: ${env.REPORT_URL}",
+                    message: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}\nBranch: ${params.BRANCH}\nBrowser: ${params.BROWSER}\n${summary}\nHTML Report: ${env.REPORT_URL}",
                     webhookUrl: credentials('slack-webhook')
                 )
             }
@@ -104,7 +106,7 @@ pipeline {
     }
 }
 
-// Utility to summarize test results per browser
+// Utility function to summarize test results per browser
 def getPlaywrightSummary() {
     def summary = ""
     def browsers = ["chromium", "firefox", "webkit", "chrome"]
