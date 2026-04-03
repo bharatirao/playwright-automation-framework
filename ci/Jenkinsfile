@@ -13,7 +13,7 @@ pipeline {
         )
         choice(
             name: 'BROWSER',
-            choices: ['chromium', 'firefox', 'webkit', 'chrome', 'ALL'],
+            choices: ['chromium', 'firefox', 'webkit', 'Google Chrome', 'ALL'],
             description: 'Select browser to run tests or ALL'
         )
     }
@@ -52,14 +52,14 @@ pipeline {
                     if (params.BROWSER == 'ALL') {
                         echo "Running tests on ALL browsers in parallel"
                         parallel(
-                            Chromium: { bat 'npx playwright test --project=chromium --output=results/chromium' },
-                            Firefox: { bat 'npx playwright test --project=firefox --output=results/firefox' },
-                            Webkit: { bat 'npx playwright test --project=webkit --output=results/webkit' },
-                            Chrome: { bat 'npx playwright test --project="Google Chrome" --output=results/chrome' }
-                        )
+    Chromium: { bat 'npx playwright test --project=chromium --reporter=json --output=results/chromium' },
+    Firefox: { bat 'npx playwright test --project=firefox --reporter=json --output=results/firefox' },
+    Webkit: { bat 'npx playwright test --project=webkit --reporter=json --output=results/webkit' },
+    Chrome: { bat 'npx playwright test --project="Google Chrome" --reporter=json --output=results/chrome' }
+)
                     } else {
                         echo "Running tests on browser: ${params.BROWSER}"
-                        bat "npx playwright test --project=${params.BROWSER} --output=results/${params.BROWSER}"
+                        bat "npx playwright test --project=${params.BROWSER} --reporter=json --output=results/${params.BROWSER}"
                     }
                 }
             }
@@ -84,62 +84,52 @@ pipeline {
             archiveArtifacts artifacts: 'playwright-report/**', allowEmptyArchive: true
         }
 
-        success {
-            script {
-                def summary = getPlaywrightSummary()
-                slackSend(
-                    channel: 'playwright-automation-results',
-                    message: """✅ *Build SUCCESS*
+       success {
+    slackSend(
+        channel: 'playwright-automation-results',
+        message: """✅ *Build SUCCESS*
 Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}
 Branch: ${params.BRANCH}
 Browser: ${params.BROWSER}
 
-${summary}
-
 Report: ${env.REPORT_URL}
 """,
-                    tokenCredentialId: 'slack-bot-token',
-                    botUser: true
-                )
-            }
-        }
+        tokenCredentialId: 'slack-bot-token',
+        botUser: true
+    )
+}
 
-        failure {
-            script {
-                def summary = getPlaywrightSummary()
-                slackSend(
-                    channel: 'playwright-automation-results',
-                    message: """❌ *Build FAILED*
+     failure {
+    slackSend(
+        channel: 'playwright-automation-results',
+        message: """❌ *Build FAILED*
 Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}
 Branch: ${params.BRANCH}
 Browser: ${params.BROWSER}
 
-${summary}
-
 Report: ${env.REPORT_URL}
 """,
-                    tokenCredentialId: 'slack-bot-token',
-                    botUser: true
-                )
-            }
-        }
+        tokenCredentialId: 'slack-bot-token',
+        botUser: true
+    )
+}
     }
 }
 
 // Utility function
-def getPlaywrightSummary() {
-    def summary = ""
-    def browsers = ["chromium", "firefox", "webkit", "chrome"]
+// def getPlaywrightSummary() {
+//     def summary = ""
+//     def browsers = ["chromium", "firefox", "webkit", "chrome"]
 
-    browsers.each { browser ->
-        def resultFile = "results/${browser}/result.txt"
-        if (fileExists(resultFile)) {
-            def result = readFile(resultFile).trim()
-            summary += "${browser.capitalize()}: ${result}\n"
-        } else {
-            summary += "${browser.capitalize()}: No results\n"
-        }
-    }
+//     browsers.each { browser ->
+//         def resultFile = "results/${browser}/result.txt"
+//         if (fileExists(resultFile)) {
+//             def result = readFile(resultFile).trim()
+//             summary += "${browser.capitalize()}: ${result}\n"
+//         } else {
+//             summary += "${browser.capitalize()}: No results\n"
+//         }
+//     }
 
-    return summary
-}
+//     return summary
+// }
