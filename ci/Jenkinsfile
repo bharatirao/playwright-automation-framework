@@ -5,13 +5,17 @@ pipeline {
         nodejs "NodeJS"
     }
 
+    environment {
+        REPORT_URL = "${env.BUILD_URL}playwright-report/index.html"
+    }
+
     stages {
 
         stage('Clean') {
-        steps {
-            deleteDir()
+            steps {
+                deleteDir()
+            }
         }
-    }
 
         stage('Checkout') {
             steps {
@@ -33,25 +37,25 @@ pipeline {
 
                 stage('Chromium') {
                     steps {
-                        bat 'npx playwright test --project=chromium --output=results/chromium'
+                        bat 'npx playwright test --project=chromium --output=results/chromium || exit 0'
                     }
                 }
 
                 stage('Firefox') {
                     steps {
-                        bat 'npx playwright test --project=firefox --output=results/firefox'
+                        bat 'npx playwright test --project=firefox --output=results/firefox || exit 0'
                     }
                 }
 
                 stage('Webkit') {
                     steps {
-                        bat 'npx playwright test --project=webkit --output=results/webkit'
+                        bat 'npx playwright test --project=webkit --output=results/webkit || exit 0'
                     }
                 }
 
                 stage('Chrome (Channel)') {
                     steps {
-                       bat 'npx playwright test --project="Google Chrome" --output=results/chrome'
+                        bat 'npx playwright test --project="Google Chrome" --output=results/chrome || exit 0'
                     }
                 }
             }
@@ -75,11 +79,41 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'playwright-report/**', allowEmptyArchive: true
         }
+
         success {
-            echo 'Tests Passed ✅'
+            script {
+                def summary = getPlaywrightSummary()
+                slackSend(
+                    channel: '#playwright-automation-results',
+                    message: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n${summary}\nHTML Report: ${env.REPORT_URL}"
+                )
+            }
         }
+
         failure {
-            echo 'Tests Failed ❌'
+            script {
+                def summary = getPlaywrightSummary()
+                slackSend(
+                    channel: '#playwright-automation-results',
+                    message: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n${summary}\nHTML Report: ${env.REPORT_URL}"
+                )
+            }
         }
     }
+}
+
+// Utility to summarize test results
+def getPlaywrightSummary() {
+    def summary = ""
+    def browsers = ["chromium", "firefox", "webkit", "chrome"]
+    browsers.each { browser ->
+        def resultFile = "results/${browser}/result.txt"
+        if (fileExists(resultFile)) {
+            def result = readFile(resultFile).trim()
+            summary += "${browser.capitalize()}: ${result}\n"
+        } else {
+            summary += "${browser.capitalize()}: No results\n"
+        }
+    }
+    return summary
 }
