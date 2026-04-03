@@ -88,8 +88,17 @@ pipeline {
             script {
                 def summary = getPlaywrightSummary()
                 slackSend(
-                    message: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}\nBranch: ${params.BRANCH}\nBrowser: ${params.BROWSER}\n${summary}\nHTML Report: ${env.REPORT_URL}",
-                    webhookUrl: credentials('slack-webhook')
+                    channel: 'playwright-automation-results',
+                    message: """✅ *Build SUCCESS*
+Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}
+Branch: ${params.BRANCH}
+Browser: ${params.BROWSER}
+
+${summary}
+
+Report: ${env.REPORT_URL}
+""",
+                    tokenCredentialId: 'slack-bot-token'
                 )
             }
         }
@@ -98,18 +107,28 @@ pipeline {
             script {
                 def summary = getPlaywrightSummary()
                 slackSend(
-                    message: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}\nBranch: ${params.BRANCH}\nBrowser: ${params.BROWSER}\n${summary}\nHTML Report: ${env.REPORT_URL}",
-                    webhookUrl: credentials('slack-webhook')
+                    channel: 'playwright-automation-results',
+                    message: """❌ *Build FAILED*
+Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}
+Branch: ${params.BRANCH}
+Browser: ${params.BROWSER}
+
+${summary}
+
+Report: ${env.REPORT_URL}
+""",
+                    tokenCredentialId: 'slack-bot-token'
                 )
             }
         }
     }
 }
 
-// Utility function to summarize test results per browser
+// Utility function
 def getPlaywrightSummary() {
     def summary = ""
     def browsers = ["chromium", "firefox", "webkit", "chrome"]
+
     browsers.each { browser ->
         def resultFile = "results/${browser}/result.txt"
         if (fileExists(resultFile)) {
@@ -119,5 +138,6 @@ def getPlaywrightSummary() {
             summary += "${browser.capitalize()}: No results\n"
         }
     }
+
     return summary
 }
