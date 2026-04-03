@@ -56,28 +56,26 @@ pipeline {
                             failFast: false,
 
                             Chromium: {
-                                bat 'npx playwright test --project=chromium --reporter=json=results/chromium/test-results.json,html --output=results/chromium || exit 0'
+                                bat 'npx playwright test --project=chromium --reporter=json,html || exit 0'
                             },
 
                             Firefox: {
-                                bat 'npx playwright test --project=firefox --reporter=json=results/firefox/test-results.json,html --output=results/firefox || exit 0'
+                                bat 'npx playwright test --project=firefox --reporter=json,html || exit 0'
                             },
 
                             Webkit: {
-                                bat 'npx playwright test --project=webkit --reporter=json=results/webkit/test-results.json,html --output=results/webkit || exit 0'
+                                bat 'npx playwright test --project=webkit --reporter=json,html || exit 0'
                             },
 
                             Chrome: {
-                                bat 'npx playwright test --project="Google Chrome" --reporter=json=results/chrome/test-results.json,html --output=results/chrome || exit 0'
+                                bat 'npx playwright test --project="Google Chrome" --reporter=json,html || exit 0'
                             }
                         )
 
                     } else {
                         echo "Running tests on browser: ${params.BROWSER}"
 
-                        def folder = params.BROWSER == 'Google Chrome' ? 'chrome' : params.BROWSER
-
-                        bat "npx playwright test --project=\"${params.BROWSER}\" --reporter=json=results/${folder}/test-results.json,html --output=results/${folder} || exit 0"
+                        bat "npx playwright test --project=\"${params.BROWSER}\" --reporter=json,html || exit 0"
                     }
                 }
             }
@@ -105,7 +103,7 @@ pipeline {
 
         success {
             script {
-                def summary = getBrowserWiseSummary()
+                def summary = getTestSummary()
 
                 slackSend(
                     channel: 'playwright-automation-results',
@@ -127,7 +125,7 @@ Report: ${env.REPORT_URL}
 
         unstable {
             script {
-                def summary = getBrowserWiseSummary()
+                def summary = getTestSummary()
 
                 slackSend(
                     channel: 'playwright-automation-results',
@@ -149,7 +147,7 @@ Report: ${env.REPORT_URL}
 
         failure {
             script {
-                def summary = getBrowserWiseSummary()
+                def summary = getTestSummary()
 
                 slackSend(
                     channel: 'playwright-automation-results',
@@ -171,46 +169,34 @@ Report: ${env.REPORT_URL}
     }
 }
 
-def getBrowserWiseSummary() {
+def getTestSummary() {
 
-    def browsers = [
-        "chromium": "Chromium",
-        "firefox": "Firefox",
-        "webkit": "Webkit",
-        "chrome": "Chrome"
-    ]
+    def filePath = "test-results.json"
 
-    def finalSummary = "📊 *Test Summary (Per Browser)*\n\n"
+    if (!fileExists(filePath)) {
+        return "⚠️ No test summary available"
+    }
 
-    browsers.each { key, name ->
+    def json = readJSON file: filePath
 
-        def filePath = "results/${key}/test-results.json"
+    int passed = 0
+    int failed = 0
+    int skipped = 0
 
-        if (!fileExists(filePath)) {
-            finalSummary += "${name} → ⚠️ No data\n"
-            return
-        }
-
-        def json = readJSON file: filePath
-
-        int passed = 0
-        int failed = 0
-        int skipped = 0
-
-        json.suites.each { suite ->
-            suite.specs.each { spec ->
-                spec.tests.each { test ->
-                    test.results.each { result ->
-                        if (result.status == "passed") passed++
-                        else if (result.status == "failed") failed++
-                        else if (result.status == "skipped") skipped++
-                    }
+    json.suites.each { suite ->
+        suite.specs.each { spec ->
+            spec.tests.each { test ->
+                test.results.each { result ->
+                    if (result.status == "passed") passed++
+                    else if (result.status == "failed") failed++
+                    else if (result.status == "skipped") skipped++
                 }
             }
         }
-
-        finalSummary += "${name} → ✅ ${passed} | ❌ ${failed} | ⏭ ${skipped}\n"
     }
 
-    return finalSummary
+    return """📊 *Test Summary*
+✅ Passed: ${passed}
+❌ Failed: ${failed}
+⏭ Skipped: ${skipped}"""
 }
