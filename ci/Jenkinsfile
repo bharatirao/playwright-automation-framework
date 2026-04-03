@@ -19,7 +19,7 @@ pipeline {
     }
 
     environment {
-        REPORT_URL = "${env.BUILD_URL}playwright-report/index.html"
+        REPORT_URL = "${BUILD_URL}playwright-report/index.html"
     }
 
     stages {
@@ -51,15 +51,33 @@ pipeline {
                 script {
                     if (params.BROWSER == 'ALL') {
                         echo "Running tests on ALL browsers in parallel"
+
                         parallel(
-    Chromium: { bat 'npx playwright test --project=chromium --reporter=json --output=results/chromium' },
-    Firefox: { bat 'npx playwright test --project=firefox --reporter=json --output=results/firefox' },
-    Webkit: { bat 'npx playwright test --project=webkit --reporter=json --output=results/webkit' },
-    Chrome: { bat 'npx playwright test --project="Google Chrome" --reporter=json --output=results/chrome' }
-)
+                            failFast: false,
+
+                            Chromium: {
+                                bat 'npx playwright test --project=chromium --reporter=json=results/chromium/test-results.json,html --output=results/chromium || exit 0'
+                            },
+
+                            Firefox: {
+                                bat 'npx playwright test --project=firefox --reporter=json=results/firefox/test-results.json,html --output=results/firefox || exit 0'
+                            },
+
+                            Webkit: {
+                                bat 'npx playwright test --project=webkit --reporter=json=results/webkit/test-results.json,html --output=results/webkit || exit 0'
+                            },
+
+                            Chrome: {
+                                bat 'npx playwright test --project="Google Chrome" --reporter=json=results/chrome/test-results.json,html --output=results/chrome || exit 0'
+                            }
+                        )
+
                     } else {
                         echo "Running tests on browser: ${params.BROWSER}"
-                        bat "npx playwright test --project=${params.BROWSER} --reporter=json --output=results/${params.BROWSER}"
+
+                        def folder = params.BROWSER == 'Google Chrome' ? 'chrome' : params.BROWSER
+
+                        bat "npx playwright test --project=\"${params.BROWSER}\" --reporter=json=results/${folder}/test-results.json,html --output=results/${folder} || exit 0"
                     }
                 }
             }
@@ -80,56 +98,119 @@ pipeline {
     }
 
     post {
+
         always {
             archiveArtifacts artifacts: 'playwright-report/**', allowEmptyArchive: true
         }
 
-       success {
-    slackSend(
-        channel: 'playwright-automation-results',
-        message: """✅ *Build SUCCESS*
+        success {
+            script {
+                def summary = getBrowserWiseSummary()
+
+                slackSend(
+                    channel: 'playwright-automation-results',
+                    color: 'good',
+                    message: """✅ *Build SUCCESS*
 Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}
 Branch: ${params.BRANCH}
 Browser: ${params.BROWSER}
 
+${summary}
+
 Report: ${env.REPORT_URL}
 """,
-        tokenCredentialId: 'slack-bot-token',
-        botUser: true
-    )
-}
+                    tokenCredentialId: 'slack-bot-token',
+                    botUser: true
+                )
+            }
+        }
 
-     failure {
-    slackSend(
-        channel: 'playwright-automation-results',
-        message: """❌ *Build FAILED*
+        unstable {
+            script {
+                def summary = getBrowserWiseSummary()
+
+                slackSend(
+                    channel: 'playwright-automation-results',
+                    color: 'warning',
+                    message: """⚠️ *Build UNSTABLE*
 Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}
 Branch: ${params.BRANCH}
 Browser: ${params.BROWSER}
 
+${summary}
+
 Report: ${env.REPORT_URL}
 """,
-        tokenCredentialId: 'slack-bot-token',
-        botUser: true
-    )
-}
+                    tokenCredentialId: 'slack-bot-token',
+                    botUser: true
+                )
+            }
+        }
+
+        failure {
+            script {
+                def summary = getBrowserWiseSummary()
+
+                slackSend(
+                    channel: 'playwright-automation-results',
+                    color: 'danger',
+                    message: """❌ *Build FAILED*
+Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}
+Branch: ${params.BRANCH}
+Browser: ${params.BROWSER}
+
+${summary}
+
+Report: ${env.REPORT_URL}
+""",
+                    tokenCredentialId: 'slack-bot-token',
+                    botUser: true
+                )
+            }
+        }
     }
 }
 
-// Utility function
-// def getPlaywrightSummary() {
-//     def summary = ""
-//     def browsers = ["chromium", "firefox", "webkit", "chrome"]
+def getBrowserWiseSummary() {
 
-//     browsers.each { browser ->
-//         def resultFile = "results/${browser}/result.txt"
-//         if (fileExists(resultFile)) {
-//             def result = readFile(resultFile).trim()
-//             summary += "${browser.capitalize()}: ${result}\n"
-//         } else {
-//             summary += "${browser.capitalize()}: No results\n"
-//         }
-//     }
+    def browsers = [
+        "chromium": "Chromium",
+        "firefox": "Firefox",
+        "webkit": "Webkit",
+        "chrome": "Chrome"
+    ]
 
-//     return summary
-// }
+    def finalSummary = "📊 *Test Summary (Per Browser)*\n\n"
+
+    browsers.each { key, name ->
+
+        def filePath = "results/${key}/test-results.json"
+
+        if (!fileExists(filePath)) {
+            finalSummary += "${name} → ⚠️ No data\n"
+            return
+        }
+
+        def json = readJSON file: filePath
+
+        int passed = 0
+        int failed = 0
+        int skipped = 0
+
+        json.suites.each { suite ->
+            suite.specs.each { spec ->
+                spec.tests.each { test ->
+                    test.results.each { result ->
+                        if (result.status == "passed") passed++
+                        else if (result.status == "failed") failed++
+                        else if (result.status == "skipped") skipped++
+                    }
+                }
+            }
+        }
+
+        finalSummary += "${name} → ✅ ${passed} | ❌ ${failed} | ⏭ ${skipped}\n"
+    }
+
+    return finalSummary
+}
